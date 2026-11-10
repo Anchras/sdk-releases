@@ -18,6 +18,9 @@ on:
         type: boolean
 
 permissions: {}
+defaults:
+  run:
+    shell: bash
 
 jobs:
   request:

@@ -18,6 +18,9 @@ on:
         type: boolean
 
 permissions: {}
+defaults:
+  run:
+    shell: bash
 concurrency:
   group: sdk-pypi-publish
   cancel-in-progress: false
