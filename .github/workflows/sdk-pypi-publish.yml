@@ -1,0 +1,57 @@
+name: Publish reviewed Python SDK
+run-name: Approve SDK candidate ${{ inputs.release_id }} (publish=${{ inputs.publish_release }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Draft candidate release ID in this repository
+        required: true
+        type: string
+      manifest_sha256:
+        description: Reviewed release manifest SHA-256
+        required: true
+        type: string
+      publish_release:
+        description: Publish after approval; false exercises the gate without contacting PyPI
+        default: false
+        type: boolean
+
+permissions: {}
+concurrency:
+  group: sdk-pypi-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && github.actor == 'github-actions[bot]'
+    environment:
+      name: sdk-pypi
+      url: https://pypi.org/project/anchras/
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Download again AFTER approval. The reviewed manifest hash and every
+      # archive digest are checked again, so replacing a draft asset cannot
+      # change what gets published. Never build or execute candidate contents.
+      - name: Fetch and recheck the exact reviewed archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          MANIFEST_SHA: ${{ inputs.manifest_sha256 }}
+        run: |
+          python3 scripts/candidate.py --release-id "$RELEASE_ID" \
+            --manifest-sha256 "$MANIFEST_SHA" --directory "$RUNNER_TEMP/candidate" \
+            --python-dist dist | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish reviewed distributions with PyPI trusted publishing
+        if: inputs.publish_release
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+      - name: Approval-path validation only
+        if: ${{ !inputs.publish_release }}
+        run: echo 'Human approval and archive verification passed; no registry publication was attempted.'
