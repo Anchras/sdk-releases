@@ -1,0 +1,15 @@
+{
+  "registry": "https://pypi.org",
+  "project": "anchras",
+  "provider": "GitHub",
+  "owner": "Anchras",
+  "repository": "sdk-releases",
+  "workflow": "sdk-pypi-publish.yml",
+  "environment": "sdk-pypi",
+  "supersedes_pending_publisher": {
+    "owner": "Anchras",
+    "repository": "Platform",
+    "workflow": "sdk-pypi-publish.yml",
+    "environment": "sdk-pypi"
+  }
+}

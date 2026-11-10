@@ -1,0 +1,66 @@
+name: Request SDK release approval
+run-name: Review SDK candidate ${{ inputs.release_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Draft candidate release ID in this repository
+        required: true
+        type: string
+      manifest_sha256:
+        description: SHA-256 of the reviewed release-manifest.json from successful private verification
+        required: true
+        type: string
+      publish_release:
+        description: Publish to PyPI after human approval (false only validates the approval path)
+        default: false
+        type: boolean
+
+permissions: {}
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  request:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate candidate and record review evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          MANIFEST_SHA: ${{ inputs.manifest_sha256 }}
+        run: |
+          python3 scripts/candidate.py --release-id "$RELEASE_ID" \
+            --manifest-sha256 "$MANIFEST_SHA" --directory "$RUNNER_TEMP/candidate" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          printf '\nReviewed manifest SHA-256: %s\n' "$MANIFEST_SHA" >> "$GITHUB_STEP_SUMMARY"
+      # A separate dispatch under GITHUB_TOKEN starts the protected job as
+      # github-actions[bot]. The human requestor can then independently approve
+      # it while prevent_self_review stays enabled. Never approve through API.
+      - name: Request the independent human approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          MANIFEST_SHA: ${{ inputs.manifest_sha256 }}
+          PUBLISH: ${{ inputs.publish_release }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          body = {"ref": "main", "inputs": {
+              "release_id": os.environ["RELEASE_ID"],
+              "manifest_sha256": os.environ["MANIFEST_SHA"],
+              "publish_release": os.environ["PUBLISH"],
+          }}
+          subprocess.run(["gh", "api", "repos/Anchras/sdk-releases/actions/workflows/sdk-pypi-publish.yml/dispatches",
+                          "-X", "POST", "--input", "-"], input=json.dumps(body).encode(), check=True)
+          PY
