@@ -18,6 +18,10 @@ dispatched publisher requires `github-actions[bot]` as its actor and waits for
 the human environment approval. Agents may prepare/request a release but must
 never approve it. Only the protected publisher has PyPI OIDC permission.
 
+Both jobs need `contents: write` in this repository because GitHub requires push
+access to read draft Releases. They use that access only to fetch the candidate;
+no private-source access or long-lived token is granted.
+
 Both jobs validate the reviewed manifest digest and every archive digest. The
 publisher downloads the candidate again **after** approval, preventing a changed
 draft asset from changing the approved package. Neither public job builds or
